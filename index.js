@@ -42,5 +42,5 @@ if (SELF_URL) {
   }, 14 * 60 * 1000);
 }
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 8081;
 server.listen(PORT, "0.0.0.0", () => console.log("Bare server on port", PORT));
