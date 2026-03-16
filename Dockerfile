@@ -4,6 +4,6 @@ WORKDIR /app
 
 RUN npm install -g @tomphttp/bare-server-node
 
-EXPOSE 8080
+EXPOSE 8081
 
 CMD ["bare-server-node", "--port", "8081", "--host", "0.0.0.0"]
