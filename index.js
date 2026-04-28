@@ -4,7 +4,7 @@ import https from "https";
 import http from "http";
 import { URL } from "url";
 
-const bare = createBareServer("/bare/", { logErrors: true });
+const bare = createBareServer("/", { logErrors: true });
 
 const STRIP = [
   "x-frame-options", "content-security-policy",
@@ -55,7 +55,8 @@ const server = createServer((req, res) => {
     return;
   }
 
-  // /proxy must be checked FIRST before bare routing
+  // /proxy MUST come before bare.shouldRoute — bare is mounted at "/" and
+  // will swallow everything otherwise
   if (req.url.startsWith("/proxy")) {
     const params = new URL(req.url, "http://localhost").searchParams;
     const target = params.get("url");
@@ -66,10 +67,11 @@ const server = createServer((req, res) => {
 
   if (bare.shouldRoute(req)) {
     bare.routeRequest(req, res);
-  } else {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok" }));
+    return;
   }
+
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ status: "ok" }));
 });
 
 server.on("upgrade", (req, socket, head) => {
