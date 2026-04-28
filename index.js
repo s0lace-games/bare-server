@@ -3,6 +3,15 @@ import { createServer } from "http";
 
 const bare = createBareServer("/", { logErrors: true });
 
+const STRIP_HEADERS = [
+  "x-frame-options",
+  "content-security-policy",
+  "content-security-policy-report-only",
+  "cross-origin-embedder-policy",
+  "cross-origin-opener-policy",
+  "cross-origin-resource-policy",
+];
+
 const server = createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "*");
@@ -15,6 +24,16 @@ const server = createServer((req, res) => {
   }
 
   if (bare.shouldRoute(req)) {
+    // Wrap res.writeHead to strip restrictive headers from proxied responses
+    const _writeHead = res.writeHead.bind(res);
+    res.writeHead = function(statusCode, statusMessage, headers) {
+      const h = (typeof statusMessage === "object" ? statusMessage : headers) || {};
+      STRIP_HEADERS.forEach(k => { delete h[k]; delete h[k.toLowerCase()]; });
+      h["Access-Control-Allow-Origin"] = "*";
+      h["Access-Control-Allow-Headers"] = "*";
+      if (typeof statusMessage === "object") return _writeHead(statusCode, h);
+      return _writeHead(statusCode, statusMessage, h);
+    };
     bare.routeRequest(req, res);
   } else {
     res.writeHead(200, { "Content-Type": "application/json" });
