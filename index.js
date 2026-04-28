@@ -55,8 +55,7 @@ const server = createServer((req, res) => {
     return;
   }
 
-  // /proxy MUST come before bare.shouldRoute — bare is mounted at "/" and
-  // will swallow everything otherwise
+  // /proxy MUST be checked before bare.shouldRoute
   if (req.url.startsWith("/proxy")) {
     const params = new URL(req.url, "http://localhost").searchParams;
     const target = params.get("url");
@@ -93,5 +92,5 @@ if (SELF_URL) {
   }, 14 * 60 * 1000);
 }
 
-const PORT = process.env.PORT || 8081;
-server.listen(PORT, "0.0.0.0", () => console.log("Bare server on port", PORT));
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, "0.0.0.0", () => console.log("Server on port", PORT));
