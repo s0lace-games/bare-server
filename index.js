@@ -4,7 +4,7 @@ import https from "https";
 import http from "http";
 import { URL } from "url";
 
-const bare = createBareServer("/", { logErrors: true });
+const bare = createBareServer("/bare/", { logErrors: true });
 
 const STRIP = [
   "x-frame-options", "content-security-policy",
@@ -55,7 +55,7 @@ const server = createServer((req, res) => {
     return;
   }
 
-  // Simple pass-through proxy: /proxy?url=https://...
+  // /proxy must be checked FIRST before bare routing
   if (req.url.startsWith("/proxy")) {
     const params = new URL(req.url, "http://localhost").searchParams;
     const target = params.get("url");
