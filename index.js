@@ -13,11 +13,15 @@ const STRIP = [
   "cross-origin-resource-policy",
 ];
 
-function simpleProxy(targetUrl, res) {
+function simpleProxy(targetUrl, referer, res) {
   let u;
   try { u = new URL(targetUrl); } catch(e) {
     res.writeHead(400); res.end("Bad URL"); return;
   }
+
+  // Use referer from request if provided, otherwise derive from target origin
+  const ref = referer || (u.origin + "/");
+
   const lib = u.protocol === "https:" ? https : http;
   const req2 = lib.request({
     hostname: u.hostname,
@@ -25,12 +29,12 @@ function simpleProxy(targetUrl, res) {
     path: u.pathname + u.search,
     method: "GET",
     headers: {
-      "Host": u.hostname,
-      "User-Agent": "Mozilla/5.0",
-      "Accept": "*/*",
+      "Host":            u.hostname,
+      "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept":          "*/*",
       "Accept-Encoding": "identity",
-      "Referer": "https://cinemaos.tech/",
-      "Origin": "https://cinemaos.tech",
+      "Referer":         ref,
+      "Origin":          new URL(ref).origin,
     }
   }, (r) => {
     const headers = Object.assign({}, r.headers);
@@ -55,12 +59,13 @@ const server = createServer((req, res) => {
     return;
   }
 
-  // /proxy MUST be checked before bare.shouldRoute
+  // /proxy must come before bare.shouldRoute
   if (req.url.startsWith("/proxy")) {
     const params = new URL(req.url, "http://localhost").searchParams;
-    const target = params.get("url");
+    const target  = params.get("url");
+    const referer = params.get("referer");
     if (!target) { res.writeHead(400); res.end("Missing url param"); return; }
-    simpleProxy(target, res);
+    simpleProxy(target, referer, res);
     return;
   }
 
