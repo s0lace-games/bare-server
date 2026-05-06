@@ -3,50 +3,15 @@ import { createServer } from "http";
 import https from "https";
 import http from "http";
 import { URL } from "url";
+import { server as wisp, logging } from "@mercuryworkshop/wisp-js/server";
+
+logging.set_level(logging.NONE);
+Object.assign(wisp.options, {
+  allow_udp_streams: false,
+  dns_servers: ["1.1.1.3", "1.0.0.3"],
+});
 
 const bare = createBareServer("/", { logErrors: true });
-
-const STRIP = [
-  "x-frame-options", "content-security-policy",
-  "content-security-policy-report-only",
-  "cross-origin-embedder-policy", "cross-origin-opener-policy",
-  "cross-origin-resource-policy",
-];
-
-function simpleProxy(targetUrl, referer, res) {
-  let u;
-  try { u = new URL(targetUrl); } catch(e) {
-    res.writeHead(400); res.end("Bad URL"); return;
-  }
-
-  // Use referer from request if provided, otherwise derive from target origin
-  const ref = referer || (u.origin + "/");
-
-  const lib = u.protocol === "https:" ? https : http;
-  const req2 = lib.request({
-    hostname: u.hostname,
-    port: u.port || (u.protocol === "https:" ? 443 : 80),
-    path: u.pathname + u.search,
-    method: "GET",
-    headers: {
-      "Host":            u.hostname,
-      "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Accept":          "*/*",
-      "Accept-Encoding": "identity",
-      "Referer":         ref,
-      "Origin":          new URL(ref).origin,
-    }
-  }, (r) => {
-    const headers = Object.assign({}, r.headers);
-    STRIP.forEach(k => { delete headers[k]; });
-    headers["access-control-allow-origin"] = "*";
-    headers["access-control-allow-headers"] = "*";
-    res.writeHead(r.statusCode, headers);
-    r.pipe(res);
-  });
-  req2.on("error", (e) => { res.writeHead(502); res.end(e.message); });
-  req2.end();
-}
 
 const server = createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -59,16 +24,6 @@ const server = createServer((req, res) => {
     return;
   }
 
-  // /proxy must come before bare.shouldRoute
-  if (req.url.startsWith("/proxy")) {
-    const params = new URL(req.url, "http://localhost").searchParams;
-    const target  = params.get("url");
-    const referer = params.get("referer");
-    if (!target) { res.writeHead(400); res.end("Missing url param"); return; }
-    simpleProxy(target, referer, res);
-    return;
-  }
-
   if (bare.shouldRoute(req)) {
     bare.routeRequest(req, res);
     return;
@@ -78,24 +33,16 @@ const server = createServer((req, res) => {
   res.end(JSON.stringify({ status: "ok" }));
 });
 
+// Wisp handles /wisp/, bare handles its own WS upgrades
 server.on("upgrade", (req, socket, head) => {
-  if (bare.shouldRoute(req)) {
+  if (req.url.endsWith("/wisp/")) {
+    wisp.routeRequest(req, socket, head);
+  } else if (bare.shouldRoute(req)) {
     bare.routeUpgrade(req, socket, head);
   } else {
     socket.destroy();
   }
 });
 
-const SELF_URL = process.env.RENDER_EXTERNAL_URL;
-if (SELF_URL) {
-  setInterval(() => {
-    import("https").then(({ default: https }) => {
-      https.get(SELF_URL, (res) => {
-        console.log("Keep-alive ping:", res.statusCode);
-      }).on("error", (e) => console.error("Ping error:", e.message));
-    });
-  }, 14 * 60 * 1000);
-}
-
 const PORT = process.env.PORT || 8080;
-server.listen(PORT, "0.0.0.0", () => console.log("Server on port", PORT));
+server.listen(PORT, "0.0.0.0", () => console.log("listening on port", PORT));
